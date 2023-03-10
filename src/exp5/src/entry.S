@@ -7,7 +7,7 @@
 	mov	x0, #\type
 	mrs	x1, esr_el1
 	mrs	x2, elr_el1
-	bl	show_invalid_entry_message
+	bl	show_invalid_instruction_entry_message
 	b	err_hang
 	.endm
 
@@ -159,11 +159,17 @@ el0_sync:
 	lsr	x24, x25, #ESR_ELx_EC_SHIFT		// exception class
 	cmp	x24, #ESR_ELx_EC_SVC64			// SVC in 64-bit state
 	b.eq	el0_svc
+	cmp x24, 0x000000
+	b.eq	el0_handle
 	handle_invalid_entry 0, SYNC_ERROR
 
 sc_nr	.req	x25					// number of system calls
 scno	.req	x26					// syscall number
 stbl	.req	x27					// syscall table pointer
+
+el0_handle:
+	handle_invalid_entry 0, SYNC_INVALID_EL0_64
+	// b ret_from_syscall
 
 el0_svc:
 	adr	stbl, sys_call_table			// load syscall table pointer

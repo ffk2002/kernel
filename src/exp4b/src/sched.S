@@ -23,3 +23,12 @@ cpu_switch_to:
 	mov	sp, x9
 	ret
 
+.globl get_cnt_frq
+get_cnt_frq:
+	mrs x0, CNTFRQ_EL0
+	ret
+
+.globl get_cnt_pct
+get_cnt_pct:
+	mrs x0, CNTPCT_EL0
+	ret

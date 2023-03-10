@@ -19,6 +19,7 @@
 #ifndef __ASSEMBLER__
 
 unsigned long get_free_page();
+unsigned long get_free_page_switch();
 void free_page(unsigned long p);
 void memzero(unsigned long src, unsigned long n);
 

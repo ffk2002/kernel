@@ -16,30 +16,30 @@
 #define CHAR_DELAY (1000000)
 #endif
 
+void sleep(int T){
+	current->state = TASK_WAIT;
+	current->sleep_time = T;
+	schedule();
+}
+
+void idle(){
+	while(1){
+		printf("|idling...");
+		//wfi
+		asm("WFI");
+		schedule();}
+}
+
 void process(char *array)
 {
-#ifdef USE_LFB // (optional) determine the init locations on the graphical console
-	int scr_x, scr_y; 
-	char c; 
-	if (array[0] == '1') {
-		scr_x = 0; scr_y = 320; 
-	} else {
-		scr_x = 0; scr_y = 480; 
-	}
-#endif 
-
 	while (1){
 		for (int i = 0; i < 5; i++){
 			uart_send(array[i]);
-#ifdef USE_LFB  // (optional) output to the graphical console
-			c = array[i+1]; array[i+1]='\0';
-			lfb_print_update(&scr_x, &scr_y, array+i);
-			array[i+1] = c; 
-			if (scr_x > 1024)
-				lfb_print_update(&scr_x, &scr_y, "\n");
-#endif
 			delay(CHAR_DELAY);
 		} 
+		// uart_send('\n');
+		enable_irq();
+		sleep(3);
 		schedule(); // yield
 	}
 }
@@ -48,7 +48,9 @@ void kernel_main(void)
 {
 	uart_init();
 	init_printf(0, putc);
-
+	irq_vector_init();
+	generic_timer_init();
+	enable_interrupt_controller();
 	printf("kernel boots\r\n");	
 
 #ifdef USE_LFB // (optional) init output to the graphical console
@@ -58,6 +60,7 @@ void kernel_main(void)
 #endif		
 
 	int res = copy_process((unsigned long)&process, (unsigned long)"12345");
+	// printf("run1\n");
 	if (res != 0) {
 		printf("error while starting process 1");
 		return;
@@ -66,6 +69,12 @@ void kernel_main(void)
 	res = copy_process((unsigned long)&process, (unsigned long)"abcde");
 	if (res != 0) {
 		printf("error while starting process 2");
+		return;
+	}
+
+	res = copy_process((unsigned long)&idle, (unsigned long)"wfi");
+	if (res != 0) {
+		printf("error while starting process 3");
 		return;
 	}
 

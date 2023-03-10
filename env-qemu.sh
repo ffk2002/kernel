@@ -24,3 +24,13 @@ run-debug() {
 run-log() {
     qemu-system-aarch64 -M raspi3 -kernel ./kernel8.img -serial null -serial stdio -d int -D qemu.log 
 }
+
+run-debug-port() {
+    read x
+    echo $x
+    qemu-system-aarch64 -M raspi3 -kernel ./kernel8.img -serial null -serial stdio -gdb tcp::$x -S
+}
+
+makef(){
+    make -f Makefile.qemu
+}

@@ -5,7 +5,7 @@
 #include "timer.h"
 
 #ifdef USE_QEMU
-unsigned int interval = (1 << 26); // xzl: around 1 sec
+unsigned int interval = (12 << 19); // xzl: around 1 sec
 #else
 unsigned int interval = 1 * 1000 * 1000; // xzl: around 1 sec
 #endif
@@ -50,5 +50,7 @@ void handle_timer_irq( void )
 	curVal += interval;
 	put32(TIMER_C1, curVal);
 	put32(TIMER_CS, TIMER_CS_M1);
+
 	timer_tick();
+
 }

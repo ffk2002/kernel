@@ -49,3 +49,7 @@ void handle_irq(void)
             printf("Unknown pending irq: %x\r\n", irq);
     }
 }
+
+void handle_irq_el2(void){
+    printf("handle hvc at el2\n");
+}

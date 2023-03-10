@@ -9,6 +9,7 @@
 #define SECTION_SIZE			(1 << SECTION_SHIFT)	
 
 #define LOW_MEMORY              	(2 * SECTION_SIZE)
+#define EL2_MEMORY              (3*SECTION_SIZE)
 
 #ifndef __ASSEMBLER__
 

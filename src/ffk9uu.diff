@@ -1,0 +1,384 @@
+diff --git a/src/exp4b/include/mm.h b/src/exp4b/include/mm.h
+index 34bd3ea..9ebe6fc 100644
+--- a/src/exp4b/include/mm.h
++++ b/src/exp4b/include/mm.h
+@@ -19,6 +19,7 @@
+ #ifndef __ASSEMBLER__
+ 
+ unsigned long get_free_page();
++unsigned long get_free_page_switch();
+ void free_page(unsigned long p);
+ void memzero(unsigned long src, unsigned long n);
+ 
+diff --git a/src/exp4b/include/sched.h b/src/exp4b/include/sched.h
+index 4d409a7..25ad17a 100644
+--- a/src/exp4b/include/sched.h
++++ b/src/exp4b/include/sched.h
+@@ -18,6 +18,13 @@ extern struct task_struct *current;
+ extern struct task_struct * task[NR_TASKS];
+ extern int nr_tasks;
+ 
++// extern struct task_switch * _switch;
++extern struct task_switch * switches[50];
++extern int switch_ct;
++
++
++// int get_pid(void);
++
+ struct cpu_context {
+ 	unsigned long x19;
+ 	unsigned long x20;
+@@ -40,6 +47,17 @@ struct task_struct {
+ 	long counter; /* countdown for scheduling. higher value means having run less */
+ 	long priority;
+ 	long preempt_count;
++	int pid;
++};
++
++struct task_switch {
++	unsigned long timestamp;
++	unsigned long prev_pc;
++	unsigned long next_pc;
++	unsigned long prev_sp;
++	unsigned long next_sp;
++	int prev_pid;
++	int next_pid;
+ };
+ 
+ extern void sched_init(void);
+@@ -49,11 +67,20 @@ extern void preempt_disable(void);
+ extern void preempt_enable(void);
+ extern void switch_to(struct task_struct* next);
+ extern void cpu_switch_to(struct task_struct* prev, struct task_struct* next);
++extern int get_pid(void);
++extern unsigned long get_cnt_frq();
++extern unsigned long get_cnt_pct();
++extern void get_next_pc_sp(void);
++int get_time_ms(void);
+ 
+ #define INIT_TASK \
+ /*cpu_context*/	{ {0,0,0,0,0,0,0,0,0,0,0,0,0}, \
+ /* state etc */	0,0,1, 0 \
+ }
+ 
++#define INIT_SWITCH \
++{0,0,0,0,0,0}
++
++
+ #endif
+ #endif
+diff --git a/src/exp4b/src/entry.S b/src/exp4b/src/entry.S
+index c85164f..14aa738 100644
+--- a/src/exp4b/src/entry.S
++++ b/src/exp4b/src/entry.S
+@@ -1,4 +1,7 @@
+ #include "entry.h"
++#include "sched.h"
++
++
+ 
+ 	.macro handle_invalid_entry type
+ 	kernel_entry
+@@ -61,8 +64,9 @@
+ 	ldp	x24, x25, [sp, #16 * 12]
+ 	ldp	x26, x27, [sp, #16 * 13]
+ 	ldp	x28, x29, [sp, #16 * 14]
+-	add	sp, sp, #S_FRAME_SIZE		
++	add	sp, sp, #S_FRAME_SIZE	
+ 	eret
++
+ 	.endm
+ 
+ 
+@@ -140,8 +144,14 @@ error_invalid_el0_32:
+ el1_irq:
+ 	kernel_entry 
+ 	bl	handle_irq
++	bl get_next_pc_sp
+ 	kernel_exit 
+ 
++// .globl pcsp
++// pcsp:
++// 	bl get_next_pc_sp
++// 	ret
++
+ .globl ret_from_fork
+ ret_from_fork:
+ 	bl	schedule_tail
+diff --git a/src/exp4b/src/fork.c b/src/exp4b/src/fork.c
+index 472b389..04d42ba 100644
+--- a/src/exp4b/src/fork.c
++++ b/src/exp4b/src/fork.c
+@@ -2,6 +2,8 @@
+ #include "sched.h"
+ #include "entry.h"
+ 
++
++
+ int copy_process(unsigned long fn, unsigned long arg)
+ {
+ 	preempt_disable();
+@@ -19,8 +21,9 @@ int copy_process(unsigned long fn, unsigned long arg)
+ 	p->cpu_context.x20 = arg;
+ 	p->cpu_context.pc = (unsigned long)ret_from_fork;
+ 	p->cpu_context.sp = (unsigned long)p + THREAD_SIZE;
+-	int pid = nr_tasks++;
+-	task[pid] = p;	
++	int _pid = nr_tasks++;
++	p->pid = _pid;
++	task[_pid] = p;	
+ 	preempt_enable();
+ 	return 0;
+ }
+diff --git a/src/exp4b/src/irq.c b/src/exp4b/src/irq.c
+index 1c9c98e..01635dc 100644
+--- a/src/exp4b/src/irq.c
++++ b/src/exp4b/src/irq.c
+@@ -2,6 +2,7 @@
+ #include "printf.h"
+ #include "timer.h"
+ #include "entry.h"
++#include "sched.h"
+ #include "peripherals/irq.h"
+ 
+ const char *entry_error_messages[] = {
+diff --git a/src/exp4b/src/kernel.c b/src/exp4b/src/kernel.c
+index ae50ca0..907513b 100644
+--- a/src/exp4b/src/kernel.c
++++ b/src/exp4b/src/kernel.c
+@@ -6,9 +6,11 @@
+ #include "sched.h"
+ #include "mini_uart.h"
+ 
++
+ void process(char *array)
+ {
+ 	while (1) {
++		// printf("|pid: %d|", get_pid());
+ 		for (int i = 0; i < 5; i++){
+ 			uart_send(array[i]);
+ 			delay(5000000);
+@@ -19,6 +21,7 @@ void process(char *array)
+ void process2(char *array)
+ {
+ 	while (1) {
++		// printf("|pid: %d|", get_pid());
+ 		for (int i = 0; i < 5; i++){
+ 			uart_send(array[i]);
+ 			delay(5000000);
+@@ -26,6 +29,9 @@ void process2(char *array)
+ 	}
+ }
+ 
++
++
++
+ void kernel_main(void)
+ {
+ 	uart_init();
+@@ -48,6 +54,16 @@ void kernel_main(void)
+ 		printf("error while starting process 2");
+ 		return;
+ 	}
++	res = copy_process((unsigned long)&process, (unsigned long)"67890");
++	if (res != 0){
++		printf("error while starting process 3");
++		return;
++	}
++	res = copy_process((unsigned long)&process, (unsigned long)"fghij");
++	if (res != 0){
++		printf("error while starting process 3");
++		return;
++	}
+ 
+ 	while (1){
+ 		schedule();
+diff --git a/src/exp4b/src/mm.c b/src/exp4b/src/mm.c
+index 3e313f5..54221db 100644
+--- a/src/exp4b/src/mm.c
++++ b/src/exp4b/src/mm.c
+@@ -13,6 +13,17 @@ unsigned long get_free_page()
+ 	return 0;
+ }
+ 
++unsigned long get_free_page_switch()
++{
++	for (int i = 0; i < PAGING_PAGES; i++){
++		if (mem_map[i] == 0){
++			mem_map[i] = 1;
++			return LOW_MEMORY + i*50*PAGE_SIZE;
++		}
++	}
++	return 0;
++}
++
+ void free_page(unsigned long p){
+ 	mem_map[(p - LOW_MEMORY) / PAGE_SIZE] = 0;
+ }
+diff --git a/src/exp4b/src/sched.S b/src/exp4b/src/sched.S
+index e9cb7a9..165eb72 100644
+--- a/src/exp4b/src/sched.S
++++ b/src/exp4b/src/sched.S
+@@ -23,3 +23,12 @@ cpu_switch_to:
+ 	mov	sp, x9
+ 	ret
+ 
++.globl get_cnt_frq
++get_cnt_frq:
++	mrs x0, CNTFRQ_EL0
++	ret
++
++.globl get_cnt_pct
++get_cnt_pct:
++	mrs x0, CNTPCT_EL0
++	ret
+diff --git a/src/exp4b/src/sched.c b/src/exp4b/src/sched.c
+index fe27b68..2160543 100644
+--- a/src/exp4b/src/sched.c
++++ b/src/exp4b/src/sched.c
+@@ -1,12 +1,25 @@
+ #include "sched.h"
+ #include "irq.h"
+ #include "printf.h"
++#include "fork.h"
++#include "peripherals/timer.h"
++#include "sched.h"
++#include "utils.h"
++#include "mm.h"
++
+ 
+ static struct task_struct init_task = INIT_TASK;
+ struct task_struct *current = &(init_task);
+ struct task_struct * task[NR_TASKS] = {&(init_task), };
++static struct task_switch init_switch = INIT_SWITCH;
++struct task_switch *_switch = &(init_switch);
++struct task_switch *switches[50] = {&(init_switch),};
++struct task_switch *s;
++int switch_ct = 1;
++
+ int nr_tasks = 1;
+ 
++
+ void preempt_disable(void)
+ {
+ 	current->preempt_count++;
+@@ -58,14 +71,34 @@ void _schedule(void)
+ 			}
+ 		}
+ 	}
++
+ 	switch_to(task[next]);
++	switches[switch_ct] = s;
++	switch_ct+=1;
+ 	preempt_enable();
+ }
+ 
+ void schedule(void)
+ {
+-	current->counter = 0;
+-	_schedule();
++	if (switch_ct<=50){
++		current->counter = 0;
++		_schedule();
++	}else{
++		printf("printing stack trace...");
++		for (int i=0; i<50; i++){
++			printf("t=%d	from pid %d (PC 0x%x SP 0x%x)	to pid %d (PC 0x%x\tSP 0x%x) \n", switches[i]->timestamp, switches[i]->prev_pid, switches[i]->prev_pc, switches[i]->prev_sp, switches[i]->next_pid, switches[i]->next_pc, switches[i]->next_sp);
++		}
++		switch_ct=1;
++	}
++
++}
++
++int get_time_ms(void){
++	// unsigned long count = (get32(TIMER_CHI) << 31) + get32(TIMER_CLO);
++	unsigned long count = get_cnt_pct();
++	unsigned long freq = get_cnt_frq();
++	// printf("--%d/%d--", count, freq);
++	return (count*1000)/freq;
+ }
+ 
+ void switch_to(struct task_struct * next) 
+@@ -74,22 +107,44 @@ void switch_to(struct task_struct * next)
+ 		return;
+ 	struct task_struct * prev = current;
+ 	current = next;
++	s = (struct task_switch *) get_free_page_switch();
++	s->timestamp = get_time_ms();
++	asm volatile("mrs %0, elr_el1" : "=r" (s->prev_pc));
++	asm volatile("mov %0, sp" : "=r" (s->prev_sp));
++	s->prev_pid=prev->pid;
++	s->next_pid=next->pid;
++
+ 	cpu_switch_to(prev, next);
+ }
+ 
++void get_next_pc_sp(void){
++	asm volatile("mrs %0, elr_el1" : "=r" (s->next_pc));
++	asm volatile("mov %0, sp" : "=r" (s->next_sp));
++}
++
+ void schedule_tail(void) {
+ 	preempt_enable();
+ }
+ 
++int get_pid(void){
++	return current->pid;
++}
++
+ 
+ void timer_tick()
+ {
+ 	--current->counter;
+-	if (current->counter>0 || current->preempt_count >0) {
++	if (current->counter>0 || current->preempt_count>0) {
+ 		return;
+ 	}
+ 	current->counter=0;
+ 	enable_irq();
++	// printf("||||| %d |||||", get_time_ms());
++	printf("|%d ms|", get_time_ms());
++
+ 	_schedule();
++
++	// printf("||pid: %d||", get_pid());
+ 	disable_irq();
++
+ }
+diff --git a/src/exp4b/src/timer.S b/src/exp4b/src/timer.S
+index 80b861f..eef055c 100644
+--- a/src/exp4b/src/timer.S
++++ b/src/exp4b/src/timer.S
+@@ -14,7 +14,7 @@ gen_timer_init:
+ 
+ .globl gen_timer_reset
+ gen_timer_reset:
+-#    mov x0, #1
+-#	lsl x0, x0, #24 
++    // mov x0, #1
++	// lsl x0, x0, #40 
+ 	msr CNTP_TVAL_EL0, x0
+     ret
+\ No newline at end of file
+diff --git a/src/exp4b/src/timer.c b/src/exp4b/src/timer.c
+index 07211b0..94c4842 100644
+--- a/src/exp4b/src/timer.c
++++ b/src/exp4b/src/timer.c
+@@ -5,7 +5,7 @@
+ #include "timer.h"
+ 
+ #ifdef USE_QEMU
+-unsigned int interval = (1 << 26); // xzl: around 1 sec
++unsigned int interval = (12 << 19); // xzl: around 1 sec
+ #else
+ unsigned int interval = 1 * 1000 * 1000; // xzl: around 1 sec
+ #endif
+@@ -50,5 +50,7 @@ void handle_timer_irq( void )
+ 	curVal += interval;
+ 	put32(TIMER_C1, curVal);
+ 	put32(TIMER_CS, TIMER_CS_M1);
++
+ 	timer_tick();
++
+ }
+\ No newline at end of file

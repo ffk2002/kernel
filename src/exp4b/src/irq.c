@@ -2,6 +2,7 @@
 #include "printf.h"
 #include "timer.h"
 #include "entry.h"
+#include "sched.h"
 #include "peripherals/irq.h"
 
 const char *entry_error_messages[] = {

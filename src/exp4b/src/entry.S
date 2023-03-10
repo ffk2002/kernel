@@ -1,4 +1,7 @@
 #include "entry.h"
+#include "sched.h"
+
+
 
 	.macro handle_invalid_entry type
 	kernel_entry
@@ -61,8 +64,9 @@
 	ldp	x24, x25, [sp, #16 * 12]
 	ldp	x26, x27, [sp, #16 * 13]
 	ldp	x28, x29, [sp, #16 * 14]
-	add	sp, sp, #S_FRAME_SIZE		
+	add	sp, sp, #S_FRAME_SIZE	
 	eret
+
 	.endm
 
 
@@ -140,7 +144,13 @@ error_invalid_el0_32:
 el1_irq:
 	kernel_entry 
 	bl	handle_irq
+	bl get_next_pc_sp
 	kernel_exit 
+
+// .globl pcsp
+// pcsp:
+// 	bl get_next_pc_sp
+// 	ret
 
 .globl ret_from_fork
 ret_from_fork:

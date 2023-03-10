@@ -18,6 +18,13 @@ extern struct task_struct *current;
 extern struct task_struct * task[NR_TASKS];
 extern int nr_tasks;
 
+// extern struct task_switch * _switch;
+extern struct task_switch * switches[50];
+extern int switch_ct;
+
+
+// int get_pid(void);
+
 struct cpu_context {
 	unsigned long x19;
 	unsigned long x20;
@@ -40,6 +47,17 @@ struct task_struct {
 	long counter; /* countdown for scheduling. higher value means having run less */
 	long priority;
 	long preempt_count;
+	int pid;
+};
+
+struct task_switch {
+	unsigned long timestamp;
+	unsigned long prev_pc;
+	unsigned long next_pc;
+	unsigned long prev_sp;
+	unsigned long next_sp;
+	int prev_pid;
+	int next_pid;
 };
 
 extern void sched_init(void);
@@ -49,11 +67,20 @@ extern void preempt_disable(void);
 extern void preempt_enable(void);
 extern void switch_to(struct task_struct* next);
 extern void cpu_switch_to(struct task_struct* prev, struct task_struct* next);
+extern int get_pid(void);
+extern unsigned long get_cnt_frq();
+extern unsigned long get_cnt_pct();
+extern void get_next_pc_sp(void);
+int get_time_ms(void);
 
 #define INIT_TASK \
 /*cpu_context*/	{ {0,0,0,0,0,0,0,0,0,0,0,0,0}, \
 /* state etc */	0,0,1, 0 \
 }
+
+#define INIT_SWITCH \
+{0,0,0,0,0,0}
+
 
 #endif
 #endif

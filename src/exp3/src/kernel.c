@@ -12,6 +12,7 @@ void kernel_main(void)
 	printf("kernel boots...\n");
 
 	irq_vector_init();
+	// irq_vector_el2_init();
 	generic_timer_init();
 	enable_interrupt_controller();
 	enable_irq();
@@ -20,12 +21,12 @@ void kernel_main(void)
 	// FL (2/1/23): some ideas for triggering exceptions. Do they work? Validate your guess. Or come up with your own method...
 	// a = a / 0; 
 	// asm("mrs x0, elr_el2"); // will trigger exception at EL1
-	// asm("hvc #0");
+	asm("hvc #0");
 	// asm("msr	hcr_el2, x0");
 
-	//printf("going to call wfi...");
-	//asm("wfi");
-	//printf("we're back!");
+	// printf("going to call wfi...");
+	// asm("wfi");
+	// printf("we're back!");
 
 	while (1){
 		uart_send(uart_recv());

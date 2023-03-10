@@ -43,6 +43,7 @@ thread_start:
 	mov	x29, 0
 
 	/* Pick the function arg and execute.  */
+	// mrs x5, CurrentEL
 	mov	x0, x11
 	blr	x10
 

@@ -6,7 +6,7 @@ void handle_timer_irq ( void );
 
 void generic_timer_init ( void );
 void handle_generic_timer_irq ( void );
-
+extern unsigned int get_current_time1( void);
 extern void gen_timer_init();
 extern void gen_timer_reset();
 

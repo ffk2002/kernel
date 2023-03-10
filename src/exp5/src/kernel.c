@@ -16,8 +16,21 @@
 
 void user_process1(char *array)
 {
-	char buf[2] = {0};
-	while (1){
+	while(1){
+		char buf[2] = {0};
+		for (int i = 0; i < 5; i++){
+			buf[0] = array[i];
+			call_sys_write(buf);
+			delay(DELAYS);
+		}
+		get_el();
+	}
+}
+
+void user_process2(char *array)
+{
+	while(1){
+		char buf[2] = {0};
 		for (int i = 0; i < 5; i++){
 			buf[0] = array[i];
 			call_sys_write(buf);
@@ -45,11 +58,22 @@ void user_process(){
 		printf("Error while allocating stack for process 1\n\r");
 		return;
 	}
-	err = call_sys_clone((unsigned long)&user_process1, (unsigned long)"abcd", stack);
+	err = call_sys_clone((unsigned long)&user_process2, (unsigned long)"abcd", stack);
 	if (err < 0){
 		printf("Error while clonning process 2\n\r");
 		return;
 	} 
+	stack = call_sys_malloc();
+	if (stack < 0) {
+		printf("Error while allocating stack for process 3\n\r");
+		return;
+	}
+	err = call_sys_clone((unsigned long)&user_process2, (unsigned long)"qwerty", stack);
+	if (err < 0){
+		printf("Error while clonning process 3\n\r");
+		return;
+	} 
+
 	call_sys_exit();
 }
 

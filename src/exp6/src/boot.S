@@ -178,8 +178,8 @@ __create_idmap:
 #endif
 
 __create_page_tables:
-	mov		x29, x30						// save return address
-
+	// mov		x29, x30						// save return address
+	str   x30, [sp, #16*16]
 	// clear the mem region backing pgtables
 	adrp 	x0, pg_dir
 	mov		x1, #PG_DIR_SIZE
@@ -202,6 +202,7 @@ __create_page_tables:
 	ldr		x3, =(VA_START + PHYS_MEMORY_SIZE - SECTION_SIZE)	// x3 = the virtual base of the last section
 	create_block_map x0, x1, x2, x3, MMU_DEVICE_FLAGS, x4
 
-	mov	x30, x29						// restore return address
+	// mov	x30, x29						// restore return address
+	ldr   x30, [sp, #16*16]
 	ret
 

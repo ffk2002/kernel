@@ -13,6 +13,17 @@ unsigned long get_free_page()
 	return 0;
 }
 
+unsigned long get_free_page_switch()
+{
+	for (int i = 0; i < PAGING_PAGES; i++){
+		if (mem_map[i] == 0){
+			mem_map[i] = 1;
+			return LOW_MEMORY + i*50*PAGE_SIZE;
+		}
+	}
+	return 0;
+}
+
 void free_page(unsigned long p){
 	mem_map[(p - LOW_MEMORY) / PAGE_SIZE] = 0;
 }

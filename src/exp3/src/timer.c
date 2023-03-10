@@ -38,7 +38,9 @@ void handle_generic_timer_irq( void )
 	gen_timer_reset(interval);
 }
 
-
+// void handle_hvc_irq(void){
+// 	printf("hvc interrupt at el2");
+// }
 /* 
 	These are for "System Timer". They are NOT in use by this project. 
 	I leave the code here FYI. 
