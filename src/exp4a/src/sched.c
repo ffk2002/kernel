@@ -1,40 +1,19 @@
 #include "sched.h"
 #include "irq.h"
 #include "printf.h"
-#include "timer.h"
 
-static struct task_struct init_run_task = INIT_RUN_TASK;
-struct task_struct *current = &(init_run_task);
-struct task_struct * task[NR_TASKS] = {&(init_run_task), };
+static struct task_struct init_task = INIT_TASK;
+struct task_struct *current = &(init_task);
+struct task_struct * task[NR_TASKS] = {&(init_task), };
 int nr_tasks = 1;
-// static struct task_struct init_wait_task = INIT_WAIT_TASK;
-// struct task_struct * wait_task[NR_TASKS] = {&(init_wait_task),};
-// int nr_wait_task = 0;
-
 
 void _schedule(void)
 {
 	int next, c;
 	struct task_struct * p;
-	// struct task_struct * w;
 	while (1) {
 		c = -1;	// the maximum counter found so far
 		next = 0;
-
-		// for (int i=0; i<NR_TASKS;i++){
-		// 	printf("check wait");
-		// 	w = task[i];
-		// 	if (get_current_time1()>=w->resume){
-		// 		w->state=TASK_READY;
-		// 		// switch_to(wait_task[i]); 
-		// 		break;
-		// 	}else if(w->state==TASK_READY){
-		// 		next=i;
-		// 		if(c){
-		// 			break;
-		// 		}
-		// 	}
-		// }
 
 		/* Iterates over all tasks and tries to find a task in 
 		TASK_RUNNING state with the maximum counter. If such 
@@ -43,21 +22,15 @@ void _schedule(void)
 
 		for (int i = 0; i < NR_TASKS; i++){
 			p = task[i];
-			if (p && (p->state == TASK_RUNNING) && p->counter > c) {
+			if (p && p->state == TASK_RUNNING && p->counter > c) { /* NB: p->counter always be non negative */
 				c = p->counter;
 				next = i;
-			// }else i f (p->state == TASK_WAIT){
-				// printf("task in wait\n");
-				// wait_task[nr_wait_task] = p;
-				// nr_wait_task++;
 			}
 		}
-		if (c) {
+		if (c) {	/* found a RUNNING/READY task w/ the most positive counter.  NB: c won't be -1 as counter always nonnegative */
 			break;
 		}
 
-
-		next = 3;
 		/* If no such task is found, this is either because i) no 
 		task is in TASK_RUNNING state or ii) all such tasks have 0 counters.
 		in our current implemenation which misses TASK_WAIT, only condition ii) is possible. 
@@ -67,7 +40,6 @@ void _schedule(void)
 			if (p) {
 				p->counter = (p->counter >> 1) + p->priority; // The increment depends on a task's priority.
 			}
-			
 		}
 
 		/* loops back to pick the next task */
