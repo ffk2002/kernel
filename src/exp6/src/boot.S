@@ -115,6 +115,7 @@ el1_entry:
 	// @tbl now points to the newly created PUD table
 	create_table_entry \tbl, \virt, PUD_SHIFT, \tmp1, \tmp2		// set a PUD entry
 	// @tbl now points to the newly created PMD table
+
 	.endm
 
 	// Allocating a new page table (either PGD or PUD) for the kernel's initial page tables
@@ -133,6 +134,34 @@ el1_entry:
 	orr	\tmp2, \tmp2, #MM_TYPE_PAGE_TABLE		// tmp2: make a table descriptor. set bits[0:1] to 1. 
 	str	\tmp2, [\tbl, \tmp1, lsl #3]			// store descriptor (tmp2) to the current pgtable at index (tmp1)
 	add	\tbl, \tbl, #PAGE_SIZE					// point @tbl to the newly create next level pgtable. programming ease
+	.endm
+
+
+
+
+	// Allocating a new page table (either PGD or PUD) for the kernel's initial page tables
+	// All the initial page tables are located in one continuous memory region
+	//
+	// @tbl: a register pointing to the last pgtable in a memory region, from which pgtables 
+	//			are allocated sequentially
+	// @virt: the virtual address that we are currently mapping
+	// @shift: 39 in case of PGD and 30 in case of PUD
+	// 		   apply to the virtual address in order to extract current table index. 
+	// @tmp1/2: temporary registers to use; contents will be clobbered 
+
+	.macro	create_table_entry1, tbl, virt, shift, tmp1, tmp2
+	// sub \tbl, \tbl, #PAGE_SIZE
+	lsr	\tmp1, \virt, #\shift
+	and	\tmp1, \tmp1, #PTRS_PER_TABLE-1		// tmp1: table index
+
+	add	\tmp2, \tbl, #PAGE_SIZE					// tmp2: addr of a next level pgtable PMD)
+	add	\tmp2, \tmp2, #PAGE_SIZE				// tmp2: addr of second PMD. 
+
+	orr	\tmp2, \tmp2, #MM_TYPE_PAGE_TABLE		// tmp2: make a table descriptor. set bits[0:1] to 1. 
+	str	\tmp2, [\tbl, \tmp1, lsl #3]			// store descriptor (tmp2) to the current pgtable at index (tmp1)
+
+	add	\tbl, \tbl, #PAGE_SIZE					
+	add \tbl, \tbl, #PAGE_SIZE					// point @tbl to the newly create next level pgtable. programming ease
 	.endm
 
 	// Populating entries in a PMD table for a given virt addr range 
@@ -168,6 +197,7 @@ __create_idmap:
 	mov	x1, xzr
 	create_pgd_entry	x0, x1, x2, x3
 
+
 	mov	x1, xzr
 	mov	x2, xzr
 	ldr	x3, =(PHYS_MEMORY_SIZE)
@@ -178,8 +208,8 @@ __create_idmap:
 #endif
 
 __create_page_tables:
-	// mov		x29, x30						// save return address
-	str   x30, [sp, #16*16]
+	mov		x29, x30						// save return address
+	// str   x30, [sp, #16*16]
 	// clear the mem region backing pgtables
 	adrp 	x0, pg_dir
 	mov		x1, #PG_DIR_SIZE
@@ -190,6 +220,8 @@ __create_page_tables:
 	mov		x1, #VA_START 
 	create_pgd_entry x0, x1, x2, x3		// after this, x0 points to the new PMD table
 
+
+
 	/* Mapping kernel and init stack. Phys addr range: 0--DEVICE_BASE */
 	mov 	x1, xzr				// x1 = starting phys addr. set x1 to 0. 
 	mov 	x2, #VA_START		// x2 = the virtual base of the first section
@@ -198,11 +230,33 @@ __create_page_tables:
 
 	/* Mapping device memory. Phys addr range: DEVICE_BASE--PHYS_MEMORY_SIZE(0x40000000) */
 	mov 	x1, #DEVICE_BASE					// x1 = start mapping from device base address 
-	ldr 	x2, =(VA_START + DEVICE_BASE)				// x2 = first virtual address
+	ldr 	x2, =(VA_START + PHYS_MEMORY_SIZE)				// x2 = first virtual address
 	ldr		x3, =(VA_START + PHYS_MEMORY_SIZE - SECTION_SIZE)	// x3 = the virtual base of the last section
 	create_block_map x0, x1, x2, x3, MMU_DEVICE_FLAGS, x4
 
-	// mov	x30, x29						// restore return address
-	ldr   x30, [sp, #16*16]
+
+	
+	// sub x0, pg_dir
+	// ldr x1, =(VA_START+PHYS_MEMORY_SIZE)
+	// create_table_entry1 x0,x1,PMD_SHIFT, x2, x3
+	// // mov x6, x0
+
+	/* Mapping physical memory. Phys addr range: DEVICE_BASE--PHYS_MEMORY_SIZE(0x40000000) */
+	mov 	x1, #PHYS_MEMORY_SIZE									// x1 = start mapping from device base address 
+	ldr 	x2, =(VA_START + PHYS_MEMORY_SIZE)						// x2 = first virtual address
+	ldr		x3, =(VA_START + PHYS_MEMORY_SIZE + SECTION_SIZE)	// x3 = the virtual base of the last section
+
+	adrp x0, pg_dir
+	add x0, x0, #PAGE_SIZE
+	mov x6, x0
+	add x0, x0, #PAGE_SIZE
+	add x0, x0, #PAGE_SIZE
+	// ldr x7, =(VA_START+PHYS_MEMORY_SIZE)
+	create_table_entry1 x6,x2,PUD_SHIFT, x7, x8
+
+	create_block_map x0, x1, x2, x3, MMU_DEVICE_FLAGS, x4
+
+	mov	x30, x29						// restore return address
+	// ldr   x30, [sp, #16*16]
 	ret
 

@@ -2,8 +2,10 @@
 #include "printf.h"
 #include "sched.h"
 #include "peripherals/timer.h"
+#include "peripherals/irq.h"
+#include "timer.h"
 
-const unsigned int interval = 200000;
+const unsigned int interval = 20000;
 unsigned int curVal = 0;
 
 /* 
@@ -15,34 +17,36 @@ unsigned int curVal = 0;
 	https://fxlin.github.io/p1-kernel/exp3/rpi-os/#fyi-other-timers-on-rpi3
 */
 
-void timer_init ( void )
-{
-	curVal = get32(TIMER_CLO);
-	curVal += interval;
-	put32(TIMER_C1, curVal);
-}
+// void timer_init ( void )
+// {
+// 	curVal = get32(TIMER_CLO);
+// 	curVal += interval;
+// 	put32(TIMER_C1, curVal);
+// }
 
-void handle_timer_irq( void ) 
-{
-	curVal += interval;
-	put32(TIMER_C1, curVal);
-	put32(TIMER_CS, TIMER_CS_M1);
-	timer_tick();
-}
+// void handle_timer_irq( void ) 
+// {
+// 	curVal += interval;
+// 	put32(TIMER_C1, curVal);
+// 	put32(TIMER_CS, TIMER_CS_M1);
+// 	timer_tick();
+// }
 
 /* 	These are for Arm generic timer. 
 	They are fully functional on both QEMU and Rpi3 
 */
 
-//void generic_timer_init ( void )
-//{
-//	gen_timer_init();
-//	gen_timer_reset();
-//}
-//
-//void handle_generic_timer_irq( void )
-//{
-//	gen_timer_reset();
-//	timer_tick();
-//}
+void generic_timer_init ( void )
+{
+	gen_timer_init();
+	gen_timer_reset();
+	// put32(TIMER_INT_CTRL_0, TIMER_INT_CTRL_0_VALUE);
+}
+
+void handle_generic_timer_irq( void )
+{
+	printf("handle");
+	gen_timer_reset();
+	timer_tick();
+}
 

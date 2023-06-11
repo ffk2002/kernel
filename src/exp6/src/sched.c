@@ -73,6 +73,7 @@ void schedule_tail(void) {
 
 void timer_tick()
 {
+	printf("rimetricm");
 	--current->counter;
 	if (current->counter>0 || current->preempt_count >0) {
 		return;

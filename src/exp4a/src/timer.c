@@ -39,36 +39,18 @@ unsigned int get_current_time1(void){
 
 void handle_generic_timer_irq( void ) 
 {
-	// printf("-WAIT-");
 	for (int i=0; i<NR_TASKS;i++){
-		// printf("check wait: %d\n", i);
 		struct task_struct * w = task[i];
 		if(w->state==TASK_WAIT){
 			w->sleep_time--;
 			if (w->sleep_time<=0){
 				w->state=TASK_RUNNING;
-				// w->counter++;
-				// switch_to(task[i]); 
 			}
 		}
-
-		
-		// else if(w->state==TASK_READY){
-		// 	next=i;
-		// 	if(c){
-		// 		break;
-		// 	}
-		// }
-
-
 	}
-	// printf("...INTERRUPT...");
 	gen_timer_reset(interval);
 }
 
-// void handle_hvc_irq(void){
-// 	printf("hvc interrupt at el2");
-// }
 /* 
 	These are for "System Timer". They are NOT in use by this project. 
 	I leave the code here FYI. 
